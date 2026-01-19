@@ -19,6 +19,7 @@ export interface CustomField {
   label: string;
   type: 'text' | 'number' | 'date' | 'select';
   target: 'company' | 'contact';
+  options?: string[]; // Opcje dla typu 'select'
 }
 
 export interface Company {
@@ -28,6 +29,7 @@ export interface Company {
   website: string;
   status: 'Active' | 'Prospect' | 'Inactive';
   createdAt: string;
+  customValues?: Record<string, any>;
 }
 
 export interface Contact {
@@ -38,6 +40,7 @@ export interface Contact {
   email: string;
   phone: string;
   role: string;
+  customValues?: Record<string, any>;
 }
 
 export interface Deal {
