@@ -37,6 +37,7 @@ export interface Company {
   website: string;
   status: 'Active' | 'Prospect' | 'Inactive';
   createdAt: string;
+  owner: string;
   customValues?: Record<string, any>;
 }
 
@@ -48,6 +49,7 @@ export interface Contact {
   email: string;
   phone: string;
   role: string;
+  owner: string;
   customValues?: Record<string, any>;
 }
 
@@ -59,6 +61,7 @@ export interface Deal {
   value: number;
   stage: string;
   expectedCloseDate: string;
+  owner: string;
 }
 
 export interface Task {

@@ -33,16 +33,16 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
               <p className="text-slate-400 text-sm font-medium">{company.website}</p>
             </div>
           </div>
-          <div className="flex space-x-2 mt-4">
+          <div className="flex flex-wrap gap-2 mt-4">
             <span className="px-3 py-1 bg-white border border-slate-100 rounded-full text-[10px] font-black text-slate-500 uppercase tracking-widest">{company.industry}</span>
             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${company.status === 'Active' ? 'bg-green-50 text-green-600' : company.status === 'Prospect' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>{company.status}</span>
+            <span className="px-3 py-1 bg-indigo-50 rounded-full text-[10px] font-black text-indigo-600 uppercase tracking-widest">👤 {company.owner}</span>
           </div>
         </div>
         <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-xl transition-colors text-slate-400 font-bold">✕</button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-        {/* Sekcja pól niestandardowych */}
         {companyCustomFields.length > 0 && (
           <section>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">Informacje dodatkowe</h3>
@@ -64,55 +64,40 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
         <section>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Kontakty ({contacts.length})</h3>
-            <button 
-              onClick={onAddContact}
-              className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all font-black"
-            >
-              +
-            </button>
+            <button onClick={onAddContact} className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all font-black">+</button>
           </div>
           <div className="space-y-3">
-            {contacts.length > 0 ? contacts.map(contact => (
+            {contacts.map(contact => (
               <div key={contact.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between group hover:border-indigo-200 transition-colors">
                 <div>
                   <p className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{contact.firstName} {contact.lastName}</p>
-                  <p className="text-xs text-slate-400 font-medium">{contact.role}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Właściciel: {contact.owner}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-600">{contact.email}</p>
-                  <p className="text-[10px] text-slate-400 font-black">{contact.phone}</p>
                 </div>
               </div>
-            )) : (
-              <p className="text-xs text-slate-400 italic">Brak przypisanych kontaktów.</p>
-            )}
+            ))}
           </div>
         </section>
 
         <section>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Szanse Sprzedażowe ({deals.length})</h3>
-            <button 
-              onClick={onAddDeal}
-              className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all font-black"
-            >
-              +
-            </button>
+            <button onClick={onAddDeal} className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all font-black">+</button>
           </div>
           <div className="space-y-3">
-            {deals.length > 0 ? deals.map(deal => (
+            {deals.map(deal => (
               <div key={deal.id} className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between hover:border-indigo-200 transition-colors">
                 <div>
                   <p className="font-bold text-slate-900 text-sm">{deal.title}</p>
-                  <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{deal.stage}</p>
+                  <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{deal.stage} • 👤 {deal.owner}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-black text-slate-900">{deal.value.toLocaleString()} <span className="text-[10px] text-slate-400">PLN</span></p>
                 </div>
               </div>
-            )) : (
-              <p className="text-xs text-slate-400 italic">Brak otwartych szans.</p>
-            )}
+            ))}
           </div>
         </section>
       </div>

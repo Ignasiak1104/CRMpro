@@ -36,12 +36,11 @@ const App: React.FC = () => {
   const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<'company' | 'contact' | 'deal' | 'task' | null>(null);
 
-  const [newCompany, setNewCompany] = useState({ name: '', industry: '', status: 'Prospect' as Company['status'], website: '', customValues: {} as Record<string, any> });
-  const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '', role: '', companyId: '', customValues: {} as Record<string, any> });
-  const [newDeal, setNewDeal] = useState({ title: '', value: 0, stage: '', expectedCloseDate: '', companyId: '', pipelineId: '' });
+  const [newCompany, setNewCompany] = useState({ name: '', industry: '', status: 'Prospect' as Company['status'], website: '', owner: '', customValues: {} as Record<string, any> });
+  const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '', role: '', owner: '', companyId: '', customValues: {} as Record<string, any> });
+  const [newDeal, setNewDeal] = useState({ title: '', value: 0, stage: '', expectedCloseDate: '', owner: '', companyId: '', pipelineId: '' });
   const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '', priority: 'Medium' as Task['priority'], relatedId: '' });
 
-  // Inicjalizacja Autoryzacji
   useEffect(() => {
     let authSubscription: any = null;
     const initAuth = async () => {
@@ -67,7 +66,6 @@ const App: React.FC = () => {
     return () => { if (authSubscription) authSubscription.unsubscribe(); };
   }, []);
 
-  // Zoptymalizowane pobieranie danych
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
@@ -83,18 +81,10 @@ const App: React.FC = () => {
       setSyncing(true);
       try {
         const [compRes, contRes, dealRes, taskRes] = await Promise.all([
-          supabase.from('companies')
-            .select('id, name, industry, website, status, createdAt, customValues')
-            .order('createdAt', { ascending: false })
-            .limit(100),
-          supabase.from('contacts')
-            .select('id, companyId, firstName, lastName, email, phone, role, customValues')
-            .limit(200),
-          supabase.from('deals')
-            .select('id, companyId, pipelineId, title, value, stage, expectedCloseDate'),
-          supabase.from('tasks')
-            .select('id, relatedId, title, description, dueDate, isCompleted, priority')
-            .order('dueDate', { ascending: true })
+          supabase.from('companies').select('*').order('createdAt', { ascending: false }).limit(100),
+          supabase.from('contacts').select('*').limit(200),
+          supabase.from('deals').select('*'),
+          supabase.from('tasks').select('*').order('dueDate', { ascending: true })
         ]);
 
         if (isMounted) {
@@ -120,23 +110,25 @@ const App: React.FC = () => {
     return () => { isMounted = false; };
   }, [session]);
 
-  const handleOpenModal = (type: 'company' | 'contact' | 'deal' | 'task', contextCompanyId?: string) => {
+  const handleOpenModal = (type: 'company' | 'contact' | 'deal' | 'task', contextId?: string, defaultStage?: string) => {
+    const defaultOwner = session?.user?.email || 'Brak';
     if (type === 'contact') {
-      setNewContact({ firstName: '', lastName: '', email: '', phone: '', role: '', companyId: contextCompanyId || '', customValues: {} });
+      setNewContact({ firstName: '', lastName: '', email: '', phone: '', role: '', owner: defaultOwner, companyId: contextId || '', customValues: {} });
     } else if (type === 'deal') {
       const activePipeline = pipelines.find(p => p.id === activePipelineId) || pipelines[0];
       setNewDeal({ 
         title: '', 
         value: 0, 
-        stage: activePipeline.stages[0], 
+        stage: defaultStage || activePipeline.stages[0], 
         expectedCloseDate: '', 
-        companyId: contextCompanyId || '',
+        owner: defaultOwner,
+        companyId: contextId || '',
         pipelineId: activePipelineId
       });
     } else if (type === 'task') {
-      setNewTask({ title: '', description: '', dueDate: '', priority: 'Medium', relatedId: contextCompanyId || '' });
+      setNewTask({ title: '', description: '', dueDate: '', priority: 'Medium', relatedId: contextId || '' });
     } else if (type === 'company') {
-      setNewCompany({ name: '', industry: '', status: 'Prospect', website: '', customValues: {} });
+      setNewCompany({ name: '', industry: '', status: 'Prospect', website: '', owner: defaultOwner, customValues: {} });
       setEditingCompanyId(null);
     }
     setActiveModal(type);
@@ -197,7 +189,6 @@ const App: React.FC = () => {
 
     setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: newStage } : d));
     
-    // Logika automatyzacji zadań
     const currentPipeline = pipelines.find(p => p.id === deal.pipelineId) || pipelines[0];
     const automatedTemplates = currentPipeline.automation?.[newStage];
     
@@ -205,7 +196,6 @@ const App: React.FC = () => {
       const newAutoTasks: Task[] = automatedTemplates.map(tpl => {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + tpl.daysOffset);
-        
         return {
           id: crypto.randomUUID(),
           relatedId: deal.companyId,
@@ -217,10 +207,7 @@ const App: React.FC = () => {
         };
       });
       setTasks(prev => [...newAutoTasks, ...prev]);
-      
-      if (isSupabaseConfigured && supabase) {
-        await supabase.from('tasks').insert(newAutoTasks);
-      }
+      if (isSupabaseConfigured && supabase) await supabase.from('tasks').insert(newAutoTasks);
     }
 
     if (isSupabaseConfigured && supabase) await supabase.from('deals').update({ stage: newStage }).eq('id', dealId);
@@ -261,11 +248,7 @@ const App: React.FC = () => {
         newAutomation[newName] = newAutomation[oldName];
         delete newAutomation[oldName];
       }
-      return { 
-        ...p, 
-        stages: p.stages.map(s => s === oldName ? newName : s),
-        automation: newAutomation
-      };
+      return { ...p, stages: p.stages.map(s => s === oldName ? newName : s), automation: newAutomation };
     }));
     setDeals(prev => prev.map(d => {
       if (d.pipelineId === pipelineId && d.stage === oldName) return { ...d, stage: newName };
@@ -279,24 +262,14 @@ const App: React.FC = () => {
       if (p.stages.length <= 1) return p;
       const newAutomation = { ...p.automation };
       delete newAutomation[stageName];
-      return { 
-        ...p, 
-        stages: p.stages.filter(s => s !== stageName),
-        automation: newAutomation
-      };
+      return { ...p, stages: p.stages.filter(s => s !== stageName), automation: newAutomation };
     }));
   };
 
   const handleUpdateAutomation = (pipelineId: string, stageName: string, templates: AutomatedTaskTemplate[]) => {
     setPipelines(prev => prev.map(p => {
       if (p.id !== pipelineId) return p;
-      return {
-        ...p,
-        automation: {
-          ...(p.automation || {}),
-          [stageName]: templates
-        }
-      };
+      return { ...p, automation: { ...(p.automation || {}), [stageName]: templates } };
     }));
   };
 
@@ -308,13 +281,8 @@ const App: React.FC = () => {
     setCustomFields(newFields);
   };
 
-  const handleRemoveField = (fieldId: string) => {
-    setCustomFields(prev => prev.filter(f => f.id !== fieldId));
-  };
-
-  const handleRemovePipeline = (pipelineId: string) => {
-    setPipelines(prev => prev.filter(p => p.id !== pipelineId));
-  };
+  const handleRemoveField = (fieldId: string) => setCustomFields(prev => prev.filter(f => f.id !== fieldId));
+  const handleRemovePipeline = (pipelineId: string) => setPipelines(prev => prev.filter(p => p.id !== pipelineId));
 
   const stats = useMemo(() => ({
     total: deals.reduce((acc, d) => acc + (Number(d.value) || 0), 0),
@@ -323,14 +291,12 @@ const App: React.FC = () => {
 
   const selectedCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId), [companies, selectedCompanyId]);
 
-  // Case-insensitive filtering
   const filteredContacts = useMemo(() => {
     if (!searchQuery) return contacts;
     const q = searchQuery.toLowerCase();
     return contacts.filter(co => {
-      const basic = `${co.firstName} ${co.lastName} ${co.email} ${co.phone} ${co.role}`.toLowerCase();
-      const customMatch = co.customValues ? Object.values(co.customValues).some(v => String(v).toLowerCase().includes(q)) : false;
-      return basic.includes(q) || customMatch;
+      const basic = `${co.firstName} ${co.lastName} ${co.email} ${co.phone} ${co.role} ${co.owner}`.toLowerCase();
+      return basic.includes(q);
     });
   }, [contacts, searchQuery]);
 
@@ -338,15 +304,12 @@ const App: React.FC = () => {
     if (!searchQuery) return companies;
     const q = searchQuery.toLowerCase();
     return companies.filter(c => {
-      const basic = `${c.name} ${c.industry} ${c.website} ${c.status}`.toLowerCase();
-      const customMatch = c.customValues ? Object.values(c.customValues).some(v => String(v).toLowerCase().includes(q)) : false;
-      return basic.includes(q) || customMatch;
+      const basic = `${c.name} ${c.industry} ${c.website} ${c.status} ${c.owner}`.toLowerCase();
+      return basic.includes(q);
     });
   }, [companies, searchQuery]);
 
-  useEffect(() => {
-    setSearchQuery('');
-  }, [currentView]);
+  useEffect(() => setSearchQuery(''), [currentView]);
 
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-white">
@@ -366,6 +329,14 @@ const App: React.FC = () => {
         <header className="mb-10 flex justify-between items-center">
           <h1 className="text-3xl font-black text-slate-900 tracking-tight capitalize">{currentView === 'kanban' ? 'Lejek Sprzedażowy' : currentView}</h1>
           <div className="flex items-center space-x-4">
+            {currentView === 'kanban' && (
+              <button 
+                onClick={() => handleOpenModal('deal')}
+                className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+              >
+                + Dodaj szansę
+              </button>
+            )}
             <NotificationCenter tasks={tasks} />
             <div className="flex items-center space-x-3 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
               <div className="w-6 h-6 rounded-full bg-indigo-600"></div>
@@ -396,10 +367,11 @@ const App: React.FC = () => {
             <KanbanBoard 
               deals={deals} 
               companies={companies} 
-              pipelines={pipelines}
-              activePipelineId={activePipelineId}
-              onPipelineChange={setActivePipelineId}
+              pipelines={pipelines} 
+              activePipelineId={activePipelineId} 
+              onPipelineChange={setActivePipelineId} 
               onMoveDeal={handleMoveDeal} 
+              onQuickAddDeal={(stage) => handleOpenModal('deal', undefined, stage)}
             />
           </div>
         )}
@@ -407,37 +379,25 @@ const App: React.FC = () => {
         {currentView === 'companies' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center">
-              <input 
-                type="text" 
-                placeholder="Szukaj firmy (nazwa, branża, www)..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white border border-slate-100 rounded-2xl py-3 px-4 w-80 text-sm font-medium focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm" 
-              />
+              <input type="text" placeholder="Szukaj firmy (nazwa, branża, właściciel)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-white border border-slate-100 rounded-2xl py-3 px-4 w-80 text-sm font-medium focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm" />
               <button onClick={() => handleOpenModal('company')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">+ Dodaj firmę</button>
             </div>
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  <tr><th className="px-8 py-4">Firma</th><th className="px-8 py-4">Status</th><th className="px-8 py-4">Branża</th><th className="px-8 py-4">Wiek relacji</th></tr>
+                  <tr><th className="px-8 py-4">Firma</th><th className="px-8 py-4">Status</th><th className="px-8 py-4">Właściciel</th><th className="px-8 py-4">Data dodania</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-sm">
                   {filteredCompanies.map(c => (
                     <tr key={c.id} className="hover:bg-slate-50 cursor-pointer group" onClick={() => setSelectedCompanyId(c.id)}>
                       <td className="px-8 py-5 font-bold group-hover:text-indigo-600 transition-colors">{c.name}</td>
                       <td className="px-8 py-5">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${
-                          c.status === 'Active' ? 'bg-green-50 text-green-600' : 
-                          c.status === 'Prospect' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-400'
-                        }`}>{c.status}</span>
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${c.status === 'Active' ? 'bg-green-50 text-green-600' : c.status === 'Prospect' ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-400'}`}>{c.status}</span>
                       </td>
-                      <td className="px-8 py-5 text-slate-500">{c.industry}</td>
+                      <td className="px-8 py-5 text-slate-500">{c.owner}</td>
                       <td className="px-8 py-5 text-slate-400">{new Date(c.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
-                  {filteredCompanies.length === 0 && (
-                    <tr><td colSpan={4} className="px-8 py-10 text-center text-slate-400 italic">Brak wyników wyszukiwania.</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -447,35 +407,23 @@ const App: React.FC = () => {
         {currentView === 'contacts' && (
           <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center">
-              <input 
-                type="text" 
-                placeholder="Szukaj kontaktu (imię, tel, e-mail)..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-white border border-slate-100 rounded-2xl py-3 px-4 w-96 text-sm font-medium focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm" 
-              />
+              <input type="text" placeholder="Szukaj kontaktu (imię, e-mail, właściciel)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-white border border-slate-100 rounded-2xl py-3 px-4 w-96 text-sm font-medium focus:ring-2 focus:ring-indigo-600 outline-none shadow-sm" />
               <button onClick={() => handleOpenModal('contact')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">+ Dodaj kontakt</button>
             </div>
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
-                  <tr><th className="px-8 py-4">Imię i Nazwisko</th><th className="px-8 py-4">Firma</th><th className="px-8 py-4">Dane kontaktowe</th><th className="px-8 py-4">Stanowisko</th></tr>
+                  <tr><th className="px-8 py-4">Imię i Nazwisko</th><th className="px-8 py-4">Firma</th><th className="px-8 py-4">Właściciel</th><th className="px-8 py-4">Stanowisko</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-sm">
                   {filteredContacts.map(co => (
                     <tr key={co.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-8 py-5 font-bold">{co.firstName} {co.lastName}</td>
                       <td className="px-8 py-5 text-slate-500">{companies.find(c => c.id === co.companyId)?.name || 'Brak'}</td>
-                      <td className="px-8 py-5">
-                        <div className="text-indigo-600 font-medium">{co.email}</div>
-                        <div className="text-[10px] text-slate-400 font-black tracking-widest uppercase">{co.phone}</div>
-                      </td>
+                      <td className="px-8 py-5 text-slate-500">{co.owner}</td>
                       <td className="px-8 py-5 text-slate-400">{co.role}</td>
                     </tr>
                   ))}
-                  {filteredContacts.length === 0 && (
-                    <tr><td colSpan={4} className="px-8 py-10 text-center text-slate-400 italic">Brak wyników wyszukiwania.</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -495,9 +443,7 @@ const App: React.FC = () => {
                   <span className={`font-bold transition-all ${t.isCompleted ? 'line-through text-slate-300' : 'text-slate-800'}`}>{t.title}</span>
                 </div>
                 <div className="flex items-center space-x-4">
-                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
-                    t.priority === 'High' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'
-                  }`}>{t.priority}</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${t.priority === 'High' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>{t.priority}</span>
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.dueDate}</span>
                 </div>
               </div>
@@ -505,121 +451,62 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {currentView === 'reports' && <ReportsView deals={deals} companies={companies} />}
-        {currentView === 'settings' && (
-          <SettingsView 
-            pipelines={pipelines} 
-            customFields={customFields} 
-            onAddPipeline={(p) => setPipelines([...pipelines, p])} 
-            onAddField={(f) => setCustomFields([...customFields, f])} 
-            onReorderField={handleReorderField} 
-            onMoveStage={handleMoveStage}
-            onAddStage={handleAddStage}
-            onEditStage={handleEditStage}
-            onRemoveStage={handleRemoveStage}
-            onRemoveField={handleRemoveField}
-            onRemovePipeline={handleRemovePipeline}
-            onUpdateAutomation={handleUpdateAutomation}
-          />
-        )}
+        {currentView === 'reports' && <ReportsView deals={deals} companies={companies} pipelines={pipelines} />}
+        {currentView === 'settings' && <SettingsView pipelines={pipelines} customFields={customFields} onAddPipeline={(p) => setPipelines([...pipelines, p])} onAddField={(f) => setCustomFields([...customFields, f])} onReorderField={handleReorderField} onMoveStage={handleMoveStage} onAddStage={handleAddStage} onEditStage={handleEditStage} onRemoveStage={handleRemoveStage} onRemoveField={handleRemoveField} onRemovePipeline={handleRemovePipeline} onUpdateAutomation={handleUpdateAutomation} />}
       </main>
 
       {selectedCompany && (
         <>
           <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] z-40" onClick={() => setSelectedCompanyId(null)} />
-          <CompanyDetailPanel 
-            company={selectedCompany} 
-            deals={deals.filter(d => d.companyId === selectedCompanyId)}
-            contacts={contacts.filter(co => co.companyId === selectedCompanyId)}
-            tasks={tasks.filter(t => t.relatedId === selectedCompanyId)}
-            onClose={() => setSelectedCompanyId(null)} 
-            onEdit={() => {
-              setNewCompany({
-                name: selectedCompany.name,
-                industry: selectedCompany.industry,
-                status: selectedCompany.status,
-                website: selectedCompany.website,
-                customValues: selectedCompany.customValues || {}
-              });
-              setEditingCompanyId(selectedCompany.id);
-              setActiveModal('company');
-            }}
-            onAddContact={() => handleOpenModal('contact', selectedCompanyId!)}
-            onAddDeal={() => handleOpenModal('deal', selectedCompanyId!)}
-            onAddTask={() => handleOpenModal('task', selectedCompanyId!)}
-            customFields={customFields}
-          />
+          <CompanyDetailPanel company={selectedCompany} deals={deals.filter(d => d.companyId === selectedCompanyId)} contacts={contacts.filter(co => co.companyId === selectedCompanyId)} tasks={tasks.filter(t => t.relatedId === selectedCompanyId)} onClose={() => setSelectedCompanyId(null)} onEdit={() => { setNewCompany({ name: selectedCompany.name, industry: selectedCompany.industry, status: selectedCompany.status, website: selectedCompany.website, owner: selectedCompany.owner, customValues: selectedCompany.customValues || {} }); setEditingCompanyId(selectedCompany.id); setActiveModal('company'); }} onAddContact={() => handleOpenModal('contact', selectedCompanyId!)} onAddDeal={() => handleOpenModal('deal', selectedCompanyId!)} onAddTask={() => handleOpenModal('task', selectedCompanyId!)} customFields={customFields} />
         </>
       )}
 
       {activeModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-md rounded-[40px] shadow-2xl p-10 max-h-[90vh] overflow-y-auto custom-scrollbar">
-             <h3 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">
-               {activeModal === 'company' ? 'Dane Firmy' : 
-                activeModal === 'contact' ? 'Nowy Kontakt' : 
-                activeModal === 'deal' ? 'Nowa Szansa' : 'Nowe Zadanie'}
-             </h3>
-             <form onSubmit={
-               activeModal === 'company' ? handleSaveCompany : 
-               activeModal === 'contact' ? handleAddContact : 
-               activeModal === 'deal' ? handleAddDeal : handleAddTask
-             } className="space-y-4">
+             <h3 className="text-2xl font-black text-slate-900 mb-6 tracking-tight">{activeModal === 'company' ? 'Dane Firmy' : activeModal === 'contact' ? 'Nowy Kontakt' : activeModal === 'deal' ? 'Nowa Szansa' : 'Nowe Zadanie'}</h3>
+             <form onSubmit={activeModal === 'company' ? handleSaveCompany : activeModal === 'contact' ? handleAddContact : activeModal === 'deal' ? handleAddDeal : handleAddTask} className="space-y-4">
                 {activeModal === 'company' && (
                   <>
                     <input required type="text" placeholder="Nazwa Firmy" value={newCompany.name} onChange={e => setNewCompany({...newCompany, name: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <input type="text" placeholder="Branża" value={newCompany.industry} onChange={e => setNewCompany({...newCompany, industry: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <input type="text" placeholder="Strona WWW" value={newCompany.website} onChange={e => setNewCompany({...newCompany, website: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
+                    <input type="text" placeholder="Właściciel" value={newCompany.owner} onChange={e => setNewCompany({...newCompany, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     <select value={newCompany.status} onChange={e => setNewCompany({...newCompany, status: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
-                      <option value="Prospect">Prospect</option>
-                      <option value="Active">Aktywny Klient</option>
-                      <option value="Inactive">Nieaktywny</option>
+                      <option value="Prospect">Prospect</option><option value="Active">Aktywny Klient</option><option value="Inactive">Nieaktywny</option>
                     </select>
                   </>
                 )}
-
                 {activeModal === 'contact' && (
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <input required type="text" placeholder="Imię" value={newContact.firstName} onChange={e => setNewContact({...newContact, firstName: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                       <input required type="text" placeholder="Nazwisko" value={newContact.lastName} onChange={e => setNewContact({...newContact, lastName: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     </div>
-                    <input required type="email" placeholder="E-mail" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <input type="tel" placeholder="Telefon" value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
+                    <input required type="text" placeholder="Właściciel" value={newContact.owner} onChange={e => setNewContact({...newContact, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     <select required value={newContact.companyId} onChange={e => setNewContact({...newContact, companyId: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
-                      <option value="">Wybierz firmę...</option>
-                      {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      <option value="">Wybierz firmę...</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </>
                 )}
-
                 {activeModal === 'deal' && (
                   <>
                     <input required type="text" placeholder="Tytuł szansy" value={newDeal.title} onChange={e => setNewDeal({...newDeal, title: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     <input required type="number" placeholder="Wartość PLN" value={newDeal.value || ''} onChange={e => setNewDeal({...newDeal, value: Number(e.target.value)})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
+                    <input required type="text" placeholder="Właściciel" value={newDeal.owner} onChange={e => setNewDeal({...newDeal, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     <select required value={newDeal.companyId} onChange={e => setNewDeal({...newDeal, companyId: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
-                      <option value="">Wybierz firmę...</option>
-                      {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      <option value="">Wybierz firmę...</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <select required value={newDeal.stage} onChange={e => setNewDeal({...newDeal, stage: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
+                      {pipelines.find(p => p.id === activePipelineId)?.stages.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </>
                 )}
-
                 {activeModal === 'task' && (
                   <>
                     <input required type="text" placeholder="Tytuł zadania" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     <input required type="date" value={newTask.dueDate} onChange={e => setNewTask({...newTask, dueDate: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <select value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
-                      <option value="Low">Niski</option>
-                      <option value="Medium">Średni</option>
-                      <option value="High">Wysoki</option>
-                    </select>
-                    <select required value={newTask.relatedId} onChange={e => setNewTask({...newTask, relatedId: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
-                      <option value="">Wiąż z firmą...</option>
-                      {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
                   </>
                 )}
-
                 <div className="flex gap-4 pt-6">
                   <button type="submit" className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100">Zapisz</button>
                   <button type="button" onClick={() => setActiveModal(null)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Anuluj</button>
