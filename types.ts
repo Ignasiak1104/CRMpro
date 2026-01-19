@@ -75,6 +75,7 @@ export interface Deal {
 export interface Task {
   id: string;
   relatedId: string;
+  relatedType?: 'company' | 'contact' | 'deal' | 'none';
   title: string;
   description: string;
   dueDate: string;

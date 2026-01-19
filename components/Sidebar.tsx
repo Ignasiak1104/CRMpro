@@ -7,9 +7,10 @@ interface SidebarProps {
   currentView: ViewType;
   onViewChange: (view: ViewType) => void;
   userEmail?: string;
+  userName?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail, userName }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
     { id: 'companies', label: 'Firmy', icon: '💼' },
@@ -67,10 +68,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail 
       </nav>
       
       <div className="p-6 space-y-4">
-        {userEmail && (
+        {(userEmail || userName) && (
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Zalogowany jako</p>
-            <p className="text-[11px] font-bold text-slate-700 truncate">{userEmail}</p>
+            <p className="text-[11px] font-bold text-slate-700 truncate">{userName || userEmail}</p>
+            {userName && <p className="text-[9px] text-slate-400 truncate opacity-70 mt-0.5">{userEmail}</p>}
             <button 
               onClick={handleLogout}
               className="mt-3 w-full py-2 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest text-rose-500 hover:bg-rose-50 hover:border-rose-100 transition-all"
