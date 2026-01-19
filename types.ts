@@ -64,6 +64,7 @@ export interface Contact {
 export interface Deal {
   id: string;
   companyId: string;
+  contactId?: string;
   pipelineId: string;
   title: string;
   value: number;

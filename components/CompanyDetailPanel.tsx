@@ -21,6 +21,12 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
 }) => {
   const companyCustomFields = customFields.filter(f => f.target === 'company');
 
+  const getContactName = (contactId?: string) => {
+    if (!contactId) return null;
+    const contact = contacts.find(c => c.id === contactId);
+    return contact ? `${contact.firstName} ${contact.lastName}` : null;
+  };
+
   return (
     <div className="fixed inset-y-0 right-0 w-full max-w-xl bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out border-l border-slate-100 flex flex-col animate-in slide-in-from-right duration-300">
       <div className="p-8 border-b border-slate-50 flex justify-between items-start bg-slate-50/50">
@@ -44,7 +50,6 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-        {/* Fix: Integrated AI Insight Panel to provide sales recommendations directly in the company detail view */}
         <AIInsightPanel company={company} deals={deals} contacts={contacts} tasks={tasks} />
 
         {companyCustomFields.length > 0 && (
@@ -75,13 +80,14 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
               <div key={contact.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between group hover:border-indigo-200 transition-colors">
                 <div>
                   <p className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{contact.firstName} {contact.lastName}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Właściciel: {contact.owner}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Rola: {contact.role || 'Brak'}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-slate-600">{contact.email}</p>
                 </div>
               </div>
             ))}
+            {contacts.length === 0 && <p className="text-xs text-slate-400 italic">Brak osób kontaktowych.</p>}
           </div>
         </section>
 
@@ -95,13 +101,21 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
               <div key={deal.id} className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between hover:border-indigo-200 transition-colors">
                 <div>
                   <p className="font-bold text-slate-900 text-sm">{deal.title}</p>
-                  <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{deal.stage} • 👤 {deal.owner}</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{deal.stage}</p>
+                    {deal.contactId && (
+                      <span className="text-[10px] text-slate-400 font-bold italic">
+                        • {getContactName(deal.contactId)}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="font-black text-slate-900">{deal.value.toLocaleString()} <span className="text-[10px] text-slate-400">PLN</span></p>
                 </div>
               </div>
             ))}
+            {deals.length === 0 && <p className="text-xs text-slate-400 italic">Brak otwartych transakcji.</p>}
           </div>
         </section>
       </div>

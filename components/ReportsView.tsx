@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend 
 } from 'recharts';
-import { Deal, Company, Pipeline } from '../types';
+import { Deal, Company, Pipeline, Stage } from '../types';
 
 interface ReportsViewProps {
   deals: Deal[];
@@ -12,7 +12,7 @@ interface ReportsViewProps {
   pipelines: Pipeline[];
 }
 
-const COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff', '#f1f5f9'];
+const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#64748b'];
 
 const ReportsView: React.FC<ReportsViewProps> = ({ deals, companies, pipelines }) => {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>(pipelines[0]?.id || '');
@@ -36,16 +36,21 @@ const ReportsView: React.FC<ReportsViewProps> = ({ deals, companies, pipelines }
   }, [deals, selectedPipelineId, selectedOwner]);
 
   const kpis = useMemo(() => {
-    const wonDeals = filteredDeals.filter(d => d.stage === 'Pozyskany');
-    const totalSales = wonDeals.reduce((acc, d) => acc + d.value, 0);
+    const wonDeals = filteredDeals.filter(d => d.stage === Stage.WON);
+    const totalSales = wonDeals.reduce((acc, d) => acc + (Number(d.value) || 0), 0);
     const avgValue = wonDeals.length > 0 ? totalSales / wonDeals.length : 0;
+    
+    // Pipeline to tylko szanse aktywne (nie wygrane i nie przegrane)
+    const activePipelineValue = filteredDeals
+      .filter(d => d.stage !== Stage.WON && d.stage !== Stage.LOST)
+      .reduce((acc, d) => acc + (Number(d.value) || 0), 0);
     
     return {
       totalSales,
       wonCount: wonDeals.length,
       avgValue,
-      activePipeline: filteredDeals.filter(d => d.stage !== 'Pozyskany' && d.stage !== 'Utracony')
-        .reduce((acc, d) => acc + d.value, 0)
+      activePipelineValue,
+      winRate: filteredDeals.length > 0 ? (wonDeals.length / filteredDeals.length) * 100 : 0
     };
   }, [filteredDeals]);
 
@@ -55,7 +60,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ deals, companies, pipelines }
     const pipelineDistribution = activePipeline.stages.map(stage => ({
       name: stage,
       count: filteredDeals.filter(d => d.stage === stage).length,
-      value: filteredDeals.filter(d => d.stage === stage).reduce((acc, d) => acc + d.value, 0)
+      value: filteredDeals.filter(d => d.stage === stage).reduce((acc, d) => acc + (Number(d.value) || 0), 0)
     }));
 
     return { pipelineDistribution };
@@ -107,20 +112,20 @@ const ReportsView: React.FC<ReportsViewProps> = ({ deals, companies, pipelines }
       {/* KPI Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
-          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Suma Sprzedaży</p>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Suma Sprzedaży (Won)</p>
           <h3 className="text-2xl font-black text-slate-900">{(kpis.totalSales / 1000).toFixed(1)}k <span className="text-sm font-normal text-slate-400">PLN</span></h3>
+        </div>
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Win Rate</p>
+          <h3 className="text-2xl font-black text-green-600">{kpis.winRate.toFixed(0)}%</h3>
         </div>
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Pozyskani Klienci</p>
           <h3 className="text-2xl font-black text-slate-900">{kpis.wonCount}</h3>
         </div>
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
-          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Średnia Transakcja</p>
-          <h3 className="text-2xl font-black text-slate-900">{(kpis.avgValue / 1000).toFixed(1)}k <span className="text-sm font-normal text-slate-400">PLN</span></h3>
-        </div>
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
-          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Wartość Pipeline</p>
-          <h3 className="text-2xl font-black text-indigo-600">{(kpis.activePipeline / 1000).toFixed(1)}k <span className="text-sm font-normal text-slate-400">PLN</span></h3>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Aktywny Pipeline</p>
+          <h3 className="text-2xl font-black text-indigo-600">{(kpis.activePipelineValue / 1000).toFixed(1)}k <span className="text-sm font-normal text-slate-400">PLN</span></h3>
         </div>
       </div>
 
@@ -132,11 +137,11 @@ const ReportsView: React.FC<ReportsViewProps> = ({ deals, companies, pipelines }
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm h-[450px]">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-10">Dystrybucja Pipeline (Liczba)</h3>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-10">Dystrybucja Szans (Liczba)</h3>
             <ResponsiveContainer width="100%" height="80%">
               <BarChart data={chartData.pipelineDistribution}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: 700, fill: '#94a3b8'}} />
                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} />
                 <Tooltip contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', fontWeight: 'bold', padding: '16px' }} cursor={{ fill: '#f8fafc' }} />
                 <Bar dataKey="count" fill="#6366f1" radius={[12, 12, 0, 0]} barSize={40} />
@@ -147,7 +152,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ deals, companies, pipelines }
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-10">Wartość ofert wg etapów</h3>
             <ResponsiveContainer width="100%" height="80%">
               <PieChart>
-                <Pie data={chartData.pipelineDistribution} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={8} dataKey="value">
+                <Pie data={chartData.pipelineDistribution.filter(d => d.value > 0)} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={8} dataKey="value">
                   {chartData.pipelineDistribution.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0} />
                   ))}

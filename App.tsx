@@ -40,7 +40,7 @@ const App: React.FC = () => {
 
   const [newCompany, setNewCompany] = useState({ name: '', industry: '', status: 'Prospect' as Company['status'], website: '', owner: '', customValues: {} as Record<string, any> });
   const [newContact, setNewContact] = useState({ firstName: '', lastName: '', email: '', phone: '', role: '', owner: '', companyId: '', customValues: {} as Record<string, any> });
-  const [newDeal, setNewDeal] = useState({ title: '', value: 0, stage: '', expectedCloseDate: '', owner: '', companyId: '', pipelineId: '' });
+  const [newDeal, setNewDeal] = useState({ title: '', value: 0, stage: '', expectedCloseDate: '', owner: '', companyId: '', contactId: '', pipelineId: '' });
   const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '', priority: 'Medium' as Task['priority'], relatedId: '', relatedType: 'none' as Task['relatedType'] });
 
   useEffect(() => {
@@ -137,7 +137,7 @@ const App: React.FC = () => {
       setNewContact({ firstName: '', lastName: '', email: '', phone: '', role: '', owner: defaultOwner, companyId: contextId || '', customValues: {} });
     } else if (type === 'deal') {
       const activePipeline = pipelines.find(p => p.id === activePipelineId) || pipelines[0];
-      setNewDeal({ title: '', value: 0, stage: defaultStage || activePipeline.stages[0], expectedCloseDate: '', owner: defaultOwner, companyId: contextId || '', pipelineId: activePipelineId });
+      setNewDeal({ title: '', value: 0, stage: defaultStage || activePipeline.stages[0], expectedCloseDate: '', owner: defaultOwner, companyId: contextId || '', contactId: '', pipelineId: activePipelineId });
     } else if (type === 'task') {
       setNewTask({ 
         title: '', 
@@ -230,7 +230,14 @@ const App: React.FC = () => {
   };
 
   const selectedCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId), [companies, selectedCompanyId]);
-  const stats = useMemo(() => ({ total: deals.reduce((acc, d) => acc + (Number(d.value) || 0), 0), tasks: tasks.filter(t => !t.isCompleted).length }), [deals, tasks]);
+  const stats = useMemo(() => {
+    const activeDeals = deals.filter(d => d.stage !== Stage.WON && d.stage !== Stage.LOST);
+    return { 
+      total: activeDeals.reduce((acc, d) => acc + (Number(d.value) || 0), 0), 
+      tasks: tasks.filter(t => !t.isCompleted).length 
+    };
+  }, [deals, tasks]);
+
   const filteredContacts = useMemo(() => searchQuery ? contacts.filter(co => `${co.firstName} ${co.lastName} ${co.email} ${co.owner}`.toLowerCase().includes(searchQuery.toLowerCase())) : contacts, [contacts, searchQuery]);
   const filteredCompanies = useMemo(() => searchQuery ? companies.filter(c => `${c.name} ${c.industry} ${c.status} ${c.owner}`.toLowerCase().includes(searchQuery.toLowerCase())) : companies, [companies, searchQuery]);
   const availableOwners = useMemo(() => team.length > 0 ? team : [currentUserProfile], [team, currentUserProfile]);
@@ -265,7 +272,7 @@ const App: React.FC = () => {
       <Sidebar currentView={currentView} onViewChange={setCurrentView} userEmail={currentUserProfile.email} userName={`${currentUserProfile.firstName} ${currentUserProfile.lastName}`.trim()} />
       <main className={`flex-1 ml-64 p-10 transition-all ${currentView === 'kanban' ? 'max-w-none w-full' : 'max-w-7xl mx-auto'}`}>
         <header className="mb-10 flex justify-between items-center">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight capitalize">{currentView === 'kanban' ? 'Lejek Sprzedażowy' : currentView}</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight capitalize">{currentView === 'kanban' ? 'Lejek Sprzedażowy' : currentView === 'dashboard' ? 'Panel Główny' : currentView === 'companies' ? 'Firmy' : currentView === 'contacts' ? 'Kontakty' : currentView === 'tasks' ? 'Zadania' : currentView === 'reports' ? 'Raporty' : 'Ustawienia'}</h1>
           <div className="flex items-center space-x-4">
             {currentView === 'kanban' && <button onClick={() => handleOpenModal('deal')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">+ Dodaj szansę</button>}
             <NotificationCenter tasks={tasks} />
@@ -279,7 +286,7 @@ const App: React.FC = () => {
         {currentView === 'dashboard' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-500">
             <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Suma Pipeline</p>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Aktywny Pipeline</p>
               <h3 className="text-4xl font-black">{(stats.total / 1000).toFixed(0)}k <span className="text-lg">PLN</span></h3>
             </div>
             <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
@@ -466,6 +473,25 @@ const App: React.FC = () => {
                   <>
                     <input required type="text" placeholder="Tytuł szansy" value={newDeal.title} onChange={e => setNewDeal({...newDeal, title: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     <input required type="number" placeholder="Wartość PLN" value={newDeal.value || ''} onChange={e => setNewDeal({...newDeal, value: Number(e.target.value)})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Firma</label>
+                        <select required value={newDeal.companyId} onChange={e => setNewDeal({...newDeal, companyId: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
+                          <option value="">Wybierz firmę...</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Kontakt</label>
+                        <select value={newDeal.contactId} onChange={e => setNewDeal({...newDeal, contactId: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
+                          <option value="">Wybierz osobę...</option>
+                          {(newDeal.companyId ? contacts.filter(co => co.companyId === newDeal.companyId) : contacts).map(co => (
+                            <option key={co.id} value={co.id}>{co.firstName} {co.lastName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
                     <select required value={newDeal.owner} onChange={e => setNewDeal({...newDeal, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
                       {availableOwners.map(u => <option key={u.id} value={`${u.firstName} ${u.lastName}`.trim()}>{u.firstName} {u.lastName}</option>)}
                     </select>
