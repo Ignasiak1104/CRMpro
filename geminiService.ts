@@ -8,14 +8,8 @@ export const getCRMInsights = async (
   contacts: Contact[],
   tasks: Task[]
 ): Promise<string> => {
-  // Bezpieczny dostęp do klucza wstrzykiwanego przez środowisko
-  const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) 
-    ? process.env.API_KEY 
-    : (window as any).API_KEY;
-
-  if (!apiKey) return "Brak klucza API Gemini.";
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Fix: Exclusively use process.env.API_KEY for initializing GoogleGenAI as per SDK guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const context = `
     Firma: ${company.name} (${company.industry})
@@ -29,6 +23,7 @@ export const getCRMInsights = async (
       contents: `Przeanalizuj status klienta i daj 2 konkretne rady sprzedażowe (max 3 zdania): ${context}`,
       config: { temperature: 0.7 }
     });
+    // Fix: Directly access the .text property of the response object as per extracting text guidelines
     return response.text || "Brak analizy.";
   } catch (e) {
     console.error("Gemini Error:", e);

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Company, Deal, Contact, Task, CustomField } from '../types';
+import AIInsightPanel from './AIInsightPanel';
 
 interface CompanyDetailPanelProps {
   company: Company;
@@ -43,6 +44,9 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+        {/* Fix: Integrated AI Insight Panel to provide sales recommendations directly in the company detail view */}
+        <AIInsightPanel company={company} deals={deals} contacts={contacts} tasks={tasks} />
+
         {companyCustomFields.length > 0 && (
           <section>
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">Informacje dodatkowe</h3>

@@ -9,7 +9,7 @@ import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { INITIAL_COMPANIES, INITIAL_CONTACTS, INITIAL_DEALS, INITIAL_TASKS } from './constants';
-import { Company, Contact, Deal, Task, ViewType, Stage, Pipeline, CustomField, AutomatedTaskTemplate } from './types';
+import { Company, Contact, Deal, Task, ViewType, Stage, Pipeline, CustomField, AutomatedTaskTemplate, UserProfile } from './types';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -20,6 +20,15 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
+  const [team, setTeam] = useState<UserProfile[]>([
+    { id: 'u1', email: 'adam.nowak@moderncrm.pro', firstName: 'Adam', lastName: 'Nowak', role: 'Admin' },
+    { id: 'u2', email: 'ewa.kowalska@moderncrm.pro', firstName: 'Ewa', lastName: 'Kowalska', role: 'User' }
+  ]);
+
+  const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile>({
+    id: 'u1', email: 'demo@moderncrm.pro', firstName: 'Demo', lastName: 'User', role: 'Admin'
+  });
+
   const [pipelines, setPipelines] = useState<Pipeline[]>([
     { id: 'p1', name: 'Sprzedaż standardowa', stages: Object.values(Stage), automation: {} }
   ]);
@@ -52,6 +61,9 @@ const App: React.FC = () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         setSession(currentSession);
+        if (currentSession) {
+          setCurrentUserProfile(prev => ({ ...prev, email: currentSession.user.email || prev.email, id: currentSession.user.id }));
+        }
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
           setSession(newSession);
         });
@@ -111,7 +123,7 @@ const App: React.FC = () => {
   }, [session]);
 
   const handleOpenModal = (type: 'company' | 'contact' | 'deal' | 'task', contextId?: string, defaultStage?: string) => {
-    const defaultOwner = session?.user?.email || 'Brak';
+    const defaultOwner = `${currentUserProfile.firstName} ${currentUserProfile.lastName}`;
     if (type === 'contact') {
       setNewContact({ firstName: '', lastName: '', email: '', phone: '', role: '', owner: defaultOwner, companyId: contextId || '', customValues: {} });
     } else if (type === 'deal') {
@@ -188,7 +200,6 @@ const App: React.FC = () => {
     if (!deal) return;
 
     setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: newStage } : d));
-    
     const currentPipeline = pipelines.find(p => p.id === deal.pipelineId) || pipelines[0];
     const automatedTemplates = currentPipeline.automation?.[newStage];
     
@@ -222,94 +233,38 @@ const App: React.FC = () => {
     setTimeout(() => setSyncing(false), 200);
   };
 
-  const handleMoveStage = (pipelineId: string, sourceIndex: number, destinationIndex: number) => {
-    setPipelines(prev => prev.map(p => {
-      if (p.id !== pipelineId) return p;
-      const newStages = [...p.stages];
-      const [removed] = newStages.splice(sourceIndex, 1);
-      newStages.splice(destinationIndex, 0, removed);
-      return { ...p, stages: newStages };
-    }));
+  const handleUpdateProfile = (profile: UserProfile) => {
+    setCurrentUserProfile(profile);
+    // Aktualizujemy też w zespole jeśli tam jest
+    setTeam(prev => prev.map(u => u.id === profile.id ? profile : u));
   };
 
-  const handleAddStage = (pipelineId: string, stageName: string) => {
-    setPipelines(prev => prev.map(p => {
-      if (p.id !== pipelineId) return p;
-      if (p.stages.includes(stageName)) return p;
-      return { ...p, stages: [...p.stages, stageName] };
-    }));
+  const handleAddTeamMember = (user: UserProfile) => {
+    setTeam(prev => [...prev, user]);
   };
 
-  const handleEditStage = (pipelineId: string, oldName: string, newName: string) => {
-    setPipelines(prev => prev.map(p => {
-      if (p.id !== pipelineId) return p;
-      const newAutomation = { ...p.automation };
-      if (newAutomation[oldName]) {
-        newAutomation[newName] = newAutomation[oldName];
-        delete newAutomation[oldName];
-      }
-      return { ...p, stages: p.stages.map(s => s === oldName ? newName : s), automation: newAutomation };
-    }));
-    setDeals(prev => prev.map(d => {
-      if (d.pipelineId === pipelineId && d.stage === oldName) return { ...d, stage: newName };
-      return d;
-    }));
-  };
-
-  const handleRemoveStage = (pipelineId: string, stageName: string) => {
-    setPipelines(prev => prev.map(p => {
-      if (p.id !== pipelineId) return p;
-      if (p.stages.length <= 1) return p;
-      const newAutomation = { ...p.automation };
-      delete newAutomation[stageName];
-      return { ...p, stages: p.stages.filter(s => s !== stageName), automation: newAutomation };
-    }));
-  };
-
-  const handleUpdateAutomation = (pipelineId: string, stageName: string, templates: AutomatedTaskTemplate[]) => {
-    setPipelines(prev => prev.map(p => {
-      if (p.id !== pipelineId) return p;
-      return { ...p, automation: { ...(p.automation || {}), [stageName]: templates } };
-    }));
-  };
-
-  const handleReorderField = (index: number, direction: 'up' | 'down') => {
-    const newFields = [...customFields];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= newFields.length) return;
-    [newFields[index], newFields[targetIndex]] = [newFields[targetIndex], newFields[index]];
-    setCustomFields(newFields);
-  };
-
-  const handleRemoveField = (fieldId: string) => setCustomFields(prev => prev.filter(f => f.id !== fieldId));
-  const handleRemovePipeline = (pipelineId: string) => setPipelines(prev => prev.filter(p => p.id !== pipelineId));
+  // Fix: Derive selectedCompany from companies list using selectedCompanyId to resolve reference errors
+  const selectedCompany = useMemo(() => 
+    companies.find(c => c.id === selectedCompanyId), 
+    [companies, selectedCompanyId]
+  );
 
   const stats = useMemo(() => ({
     total: deals.reduce((acc, d) => acc + (Number(d.value) || 0), 0),
     tasks: tasks.filter(t => !t.isCompleted).length
   }), [deals, tasks]);
 
-  const selectedCompany = useMemo(() => companies.find(c => c.id === selectedCompanyId), [companies, selectedCompanyId]);
-
   const filteredContacts = useMemo(() => {
     if (!searchQuery) return contacts;
     const q = searchQuery.toLowerCase();
-    return contacts.filter(co => {
-      const basic = `${co.firstName} ${co.lastName} ${co.email} ${co.phone} ${co.role} ${co.owner}`.toLowerCase();
-      return basic.includes(q);
-    });
+    return contacts.filter(co => `${co.firstName} ${co.lastName} ${co.email} ${co.owner}`.toLowerCase().includes(q));
   }, [contacts, searchQuery]);
 
   const filteredCompanies = useMemo(() => {
     if (!searchQuery) return companies;
     const q = searchQuery.toLowerCase();
-    return companies.filter(c => {
-      const basic = `${c.name} ${c.industry} ${c.website} ${c.status} ${c.owner}`.toLowerCase();
-      return basic.includes(q);
-    });
+    return companies.filter(c => `${c.name} ${c.industry} ${c.status} ${c.owner}`.toLowerCase().includes(q));
   }, [companies, searchQuery]);
-
-  useEffect(() => setSearchQuery(''), [currentView]);
 
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-white">
@@ -339,8 +294,10 @@ const App: React.FC = () => {
             )}
             <NotificationCenter tasks={tasks} />
             <div className="flex items-center space-x-3 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="w-6 h-6 rounded-full bg-indigo-600"></div>
-              <span className="text-xs font-bold text-slate-700">{session.user.email.split('@')[0]}</span>
+              <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-[10px] text-white font-black">
+                {currentUserProfile.firstName[0]}
+              </div>
+              <span className="text-xs font-bold text-slate-700">{currentUserProfile.firstName} {currentUserProfile.lastName}</span>
             </div>
           </div>
         </header>
@@ -452,13 +409,63 @@ const App: React.FC = () => {
         )}
 
         {currentView === 'reports' && <ReportsView deals={deals} companies={companies} pipelines={pipelines} />}
-        {currentView === 'settings' && <SettingsView pipelines={pipelines} customFields={customFields} onAddPipeline={(p) => setPipelines([...pipelines, p])} onAddField={(f) => setCustomFields([...customFields, f])} onReorderField={handleReorderField} onMoveStage={handleMoveStage} onAddStage={handleAddStage} onEditStage={handleEditStage} onRemoveStage={handleRemoveStage} onRemoveField={handleRemoveField} onRemovePipeline={handleRemovePipeline} onUpdateAutomation={handleUpdateAutomation} />}
+        
+        {currentView === 'settings' && (
+          <SettingsView 
+            pipelines={pipelines} 
+            customFields={customFields} 
+            currentUserProfile={currentUserProfile}
+            team={team}
+            onUpdateProfile={handleUpdateProfile}
+            onAddTeamMember={handleAddTeamMember}
+            onAddPipeline={(p) => setPipelines([...pipelines, p])} 
+            onAddField={(f) => setCustomFields([...customFields, f])} 
+            onReorderField={(idx, dir) => {
+              const newFields = [...customFields];
+              const targetIdx = dir === 'up' ? idx - 1 : idx + 1;
+              if (targetIdx >= 0 && targetIdx < newFields.length) {
+                [newFields[idx], newFields[targetIdx]] = [newFields[targetIdx], newFields[idx]];
+                setCustomFields(newFields);
+              }
+            }} 
+            onMoveStage={(pid, s, d) => setPipelines(prev => prev.map(p => {
+              if (p.id !== pid) return p;
+              const newStages = [...p.stages];
+              const [removed] = newStages.splice(s, 1);
+              newStages.splice(d, 0, removed);
+              return { ...p, stages: newStages };
+            }))}
+            onAddStage={(pid, name) => setPipelines(prev => prev.map(p => p.id === pid ? { ...p, stages: [...p.stages, name] } : p))}
+            onEditStage={(pid, old, next) => setPipelines(prev => prev.map(p => p.id === pid ? { ...p, stages: p.stages.map(s => s === old ? next : s) } : p))}
+            onRemoveStage={(pid, name) => setPipelines(prev => prev.map(p => p.id === pid ? { ...p, stages: p.stages.filter(s => s !== name) } : p))}
+            onRemoveField={(fid) => setCustomFields(prev => prev.filter(f => f.id !== fid))}
+            onRemovePipeline={(pid) => setPipelines(prev => prev.filter(p => p.id !== pid))}
+            onUpdateAutomation={(pid, s, t) => setPipelines(prev => prev.map(p => p.id === pid ? { ...p, automation: { ...(p.automation || {}), [s]: t } } : p))}
+          />
+        )}
       </main>
 
       {selectedCompany && (
         <>
           <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[2px] z-40" onClick={() => setSelectedCompanyId(null)} />
-          <CompanyDetailPanel company={selectedCompany} deals={deals.filter(d => d.companyId === selectedCompanyId)} contacts={contacts.filter(co => co.companyId === selectedCompanyId)} tasks={tasks.filter(t => t.relatedId === selectedCompanyId)} onClose={() => setSelectedCompanyId(null)} onEdit={() => { setNewCompany({ name: selectedCompany.name, industry: selectedCompany.industry, status: selectedCompany.status, website: selectedCompany.website, owner: selectedCompany.owner, customValues: selectedCompany.customValues || {} }); setEditingCompanyId(selectedCompany.id); setActiveModal('company'); }} onAddContact={() => handleOpenModal('contact', selectedCompanyId!)} onAddDeal={() => handleOpenModal('deal', selectedCompanyId!)} onAddTask={() => handleOpenModal('task', selectedCompanyId!)} customFields={customFields} />
+          <CompanyDetailPanel 
+            company={selectedCompany} 
+            deals={deals.filter(d => d.companyId === selectedCompanyId)} 
+            contacts={contacts.filter(co => co.companyId === selectedCompanyId)} 
+            tasks={tasks.filter(t => t.relatedId === selectedCompanyId)} 
+            onClose={() => setSelectedCompanyId(null)} 
+            onEdit={() => { 
+              if (selectedCompany) {
+                setNewCompany({ ...selectedCompany, customValues: selectedCompany.customValues || {} }); 
+                setEditingCompanyId(selectedCompany.id); 
+                setActiveModal('company'); 
+              }
+            }} 
+            onAddContact={() => handleOpenModal('contact', selectedCompanyId!)} 
+            onAddDeal={() => handleOpenModal('deal', selectedCompanyId!)} 
+            onAddTask={() => handleOpenModal('task', selectedCompanyId!)} 
+            customFields={customFields} 
+          />
         </>
       )}
 
@@ -470,7 +477,9 @@ const App: React.FC = () => {
                 {activeModal === 'company' && (
                   <>
                     <input required type="text" placeholder="Nazwa Firmy" value={newCompany.name} onChange={e => setNewCompany({...newCompany, name: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <input type="text" placeholder="Właściciel" value={newCompany.owner} onChange={e => setNewCompany({...newCompany, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
+                    <select required value={newCompany.owner} onChange={e => setNewCompany({...newCompany, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
+                      {team.map(u => <option key={u.id} value={`${u.firstName} ${u.lastName}`}>{u.firstName} {u.lastName}</option>)}
+                    </select>
                     <select value={newCompany.status} onChange={e => setNewCompany({...newCompany, status: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
                       <option value="Prospect">Prospect</option><option value="Active">Aktywny Klient</option><option value="Inactive">Nieaktywny</option>
                     </select>
@@ -482,7 +491,9 @@ const App: React.FC = () => {
                       <input required type="text" placeholder="Imię" value={newContact.firstName} onChange={e => setNewContact({...newContact, firstName: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                       <input required type="text" placeholder="Nazwisko" value={newContact.lastName} onChange={e => setNewContact({...newContact, lastName: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     </div>
-                    <input required type="text" placeholder="Właściciel" value={newContact.owner} onChange={e => setNewContact({...newContact, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
+                    <select required value={newContact.owner} onChange={e => setNewContact({...newContact, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
+                      {team.map(u => <option key={u.id} value={`${u.firstName} ${u.lastName}`}>{u.firstName} {u.lastName}</option>)}
+                    </select>
                     <select required value={newContact.companyId} onChange={e => setNewContact({...newContact, companyId: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
                       <option value="">Wybierz firmę...</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
@@ -492,19 +503,12 @@ const App: React.FC = () => {
                   <>
                     <input required type="text" placeholder="Tytuł szansy" value={newDeal.title} onChange={e => setNewDeal({...newDeal, title: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                     <input required type="number" placeholder="Wartość PLN" value={newDeal.value || ''} onChange={e => setNewDeal({...newDeal, value: Number(e.target.value)})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <input required type="text" placeholder="Właściciel" value={newDeal.owner} onChange={e => setNewDeal({...newDeal, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <select required value={newDeal.companyId} onChange={e => setNewDeal({...newDeal, companyId: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
-                      <option value="">Wybierz firmę...</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    <select required value={newDeal.owner} onChange={e => setNewDeal({...newDeal, owner: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
+                      {team.map(u => <option key={u.id} value={`${u.firstName} ${u.lastName}`}>{u.firstName} {u.lastName}</option>)}
                     </select>
                     <select required value={newDeal.stage} onChange={e => setNewDeal({...newDeal, stage: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none">
                       {pipelines.find(p => p.id === activePipelineId)?.stages.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                  </>
-                )}
-                {activeModal === 'task' && (
-                  <>
-                    <input required type="text" placeholder="Tytuł zadania" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
-                    <input required type="date" value={newTask.dueDate} onChange={e => setNewTask({...newTask, dueDate: e.target.value})} className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none" />
                   </>
                 )}
                 <div className="flex gap-4 pt-6">
