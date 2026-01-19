@@ -8,10 +8,18 @@ export enum Stage {
   LOST = 'Utracony'
 }
 
+export interface AutomatedTaskTemplate {
+  id: string;
+  title: string;
+  daysOffset: number; // np. 2 dni po wejściu w etap
+  priority: 'Low' | 'Medium' | 'High';
+}
+
 export interface Pipeline {
   id: string;
   name: string;
   stages: string[];
+  automation?: Record<string, AutomatedTaskTemplate[]>; // stageName -> templates
 }
 
 export interface CustomField {
@@ -46,9 +54,10 @@ export interface Contact {
 export interface Deal {
   id: string;
   companyId: string;
+  pipelineId: string;
   title: string;
   value: number;
-  stage: Stage;
+  stage: string;
   expectedCloseDate: string;
 }
 

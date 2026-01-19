@@ -79,17 +79,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail 
             </button>
           </div>
         )}
-
-        <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden group">
-          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-indigo-600/20 rounded-full blur-2xl group-hover:bg-indigo-500/30 transition-all duration-700" />
-          
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 relative z-10">Status systemu</p>
-          <p className="text-sm font-bold mb-4 leading-tight relative z-10">AI jest gotowe do pracy</p>
-          
-          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden relative z-10">
-            <div className="w-2/3 h-full bg-indigo-500 transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(99,102,241,0.5)]"></div>
-          </div>
-        </div>
       </div>
 
       <style>{`

@@ -15,10 +15,10 @@ export const INITIAL_CONTACTS: Contact[] = [
 ];
 
 export const INITIAL_DEALS: Deal[] = [
-  { id: 'd1', companyId: '1', title: 'Wdrożenie ERP', value: 150000, stage: Stage.NEGOTIATION, expectedCloseDate: '2024-06-30' },
-  { id: 'd2', companyId: '2', title: 'Zakup licencji cloud', value: 45000, stage: Stage.QUALIFIED, expectedCloseDate: '2024-05-15' },
-  { id: 'd3', companyId: '3', title: 'Audyt infrastruktury', value: 12000, stage: Stage.NEW, expectedCloseDate: '2024-04-10' },
-  { id: 'd4', companyId: '4', title: 'Optymalizacja tras', value: 85000, stage: Stage.PROPOSAL, expectedCloseDate: '2024-08-20' },
+  { id: 'd1', companyId: '1', pipelineId: 'p1', title: 'Wdrożenie ERP', value: 150000, stage: 'Negocjacje', expectedCloseDate: '2024-06-30' },
+  { id: 'd2', companyId: '2', pipelineId: 'p1', title: 'Zakup licencji cloud', value: 45000, stage: 'Kwalifikacja', expectedCloseDate: '2024-05-15' },
+  { id: 'd3', companyId: '3', pipelineId: 'p1', title: 'Audyt infrastruktury', value: 12000, stage: 'Nowy', expectedCloseDate: '2024-04-10' },
+  { id: 'd4', companyId: '4', pipelineId: 'p1', title: 'Optymalizacja tras', value: 85000, stage: 'Propozycja', expectedCloseDate: '2024-08-20' },
 ];
 
 export const INITIAL_TASKS: Task[] = [

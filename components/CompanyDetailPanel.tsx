@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Company, Deal, Contact, Task, CustomField } from '../types';
-import AIInsightPanel from './AIInsightPanel';
 
 interface CompanyDetailPanelProps {
   company: Company;
@@ -11,11 +10,13 @@ interface CompanyDetailPanelProps {
   onClose: () => void;
   onEdit: () => void;
   onAddTask: () => void;
+  onAddContact: () => void;
+  onAddDeal: () => void;
   customFields: CustomField[];
 }
 
 const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({ 
-  company, deals, contacts, tasks, onClose, onEdit, onAddTask, customFields 
+  company, deals, contacts, tasks, onClose, onEdit, onAddTask, onAddContact, onAddDeal, customFields 
 }) => {
   const companyCustomFields = customFields.filter(f => f.target === 'company');
 
@@ -41,10 +42,6 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-        <section>
-          <AIInsightPanel company={company} deals={deals} contacts={contacts} tasks={tasks} />
-        </section>
-
         {/* Sekcja pól niestandardowych */}
         {companyCustomFields.length > 0 && (
           <section>
@@ -67,35 +64,55 @@ const CompanyDetailPanel: React.FC<CompanyDetailPanelProps> = ({
         <section>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Kontakty ({contacts.length})</h3>
+            <button 
+              onClick={onAddContact}
+              className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all font-black"
+            >
+              +
+            </button>
           </div>
           <div className="space-y-3">
-            {contacts.map(contact => (
-              <div key={contact.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            {contacts.length > 0 ? contacts.map(contact => (
+              <div key={contact.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between group hover:border-indigo-200 transition-colors">
                 <div>
-                  <p className="font-bold text-slate-900 text-sm">{contact.firstName} {contact.lastName}</p>
-                  <p className="text-xs text-slate-400">{contact.role}</p>
+                  <p className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{contact.firstName} {contact.lastName}</p>
+                  <p className="text-xs text-slate-400 font-medium">{contact.role}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-medium text-slate-600">{contact.email}</p>
-                  <p className="text-[10px] text-slate-400">{contact.phone}</p>
+                  <p className="text-xs font-bold text-slate-600">{contact.email}</p>
+                  <p className="text-[10px] text-slate-400 font-black">{contact.phone}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-xs text-slate-400 italic">Brak przypisanych kontaktów.</p>
+            )}
           </div>
         </section>
 
         <section>
-          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">Szanse Sprzedażowe ({deals.length})</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Szanse Sprzedażowe ({deals.length})</h3>
+            <button 
+              onClick={onAddDeal}
+              className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-full hover:bg-indigo-600 hover:text-white transition-all font-black"
+            >
+              +
+            </button>
+          </div>
           <div className="space-y-3">
-            {deals.map(deal => (
-              <div key={deal.id} className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between">
+            {deals.length > 0 ? deals.map(deal => (
+              <div key={deal.id} className="p-4 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-between hover:border-indigo-200 transition-colors">
                 <div>
                   <p className="font-bold text-slate-900 text-sm">{deal.title}</p>
                   <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{deal.stage}</p>
                 </div>
-                <p className="font-black text-slate-900">{deal.value.toLocaleString()} PLN</p>
+                <div className="text-right">
+                  <p className="font-black text-slate-900">{deal.value.toLocaleString()} <span className="text-[10px] text-slate-400">PLN</span></p>
+                </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-xs text-slate-400 italic">Brak otwartych szans.</p>
+            )}
           </div>
         </section>
       </div>
